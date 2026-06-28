@@ -22,7 +22,7 @@ jobs:
           TARGET: ${{ inputs.target }}
           PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
-        run: python recon/banner_grab.py
+        run: python banner_grab.py
       - name: Commit results
         if: always()
         env:
@@ -30,7 +30,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add recon/out/*.enc 2>/dev/null || true
+          git add out/*.enc 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "无变化, 跳过 commit"
           else
