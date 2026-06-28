@@ -101,7 +101,7 @@ def http_get(url: str, timeout: int = 10, **kwargs) -> requests.Response | None:
 
 
 def load_wordlist(name: str) -> list[str]:
-    path = ROOT.parent / "wordlists" / f"{name}.txt"
+    path = ROOT / "wordlists" / f"{name}.txt"
     if not path.exists():
         return []
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
