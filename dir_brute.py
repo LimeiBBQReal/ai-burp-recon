@@ -28,25 +28,16 @@ def main() -> int:
     base = f"https://{target}"
     print(f"[dir] 目标: {base}", file=sys.stderr)
 
-    wordlist = load_wordlist("dirs") or [
-        "admin", "login", "wp-admin", "wp-login",
-        "api", "v1", "v2", "graphql", "rest",
-        "backup", "old", "test", "dev",
-        "config", "conf", "settings", "setup", "install",
-        "upload", "uploads", "files", "media",
-        "images", "img", "static", "assets", "css", "js",
-        "docs", "doc",
-        "robots.txt", "sitemap.xml", "favicon.ico", ".env",
-        ".git", ".htaccess", "web.config",
-        "server-status", "server-info",
-        "actuator", "actuator/env", "actuator/health",
-        "swagger", "swagger-ui", "swagger.json", "openapi.json",
-        "console", "shell",
-        "debug", "log", "logs",
-        "user", "users", "account",
-        "cgi-bin", "scripts",
-        "wp-content", "wp-json",
-    ]
+    small_list = load_wordlist("dirs")
+    large_list = load_wordlist("dirs_large")
+
+    if large_list:
+        wordlist = large_list
+        print(f"[+] 使用大字典: {len(large_list)} 条 (注意: large 模式不设硬编码回退)", file=sys.stderr)
+    else:
+        wordlist = small_list or [
+            "admin", "login",
+        ]
     print(f"[dir] 字典: {len(wordlist)}", file=sys.stderr)
 
     t0 = time.time()
