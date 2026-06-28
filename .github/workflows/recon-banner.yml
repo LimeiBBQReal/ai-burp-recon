@@ -37,5 +37,6 @@ jobs:
             echo "无变化, 跳过 commit"
           else
             git commit -m "recon: banners ${{ inputs.target }}"
+            git fetch origin main && git rebase origin/main || true
             git push "https://LimeiBBQReal:${PAT_TOKEN}@github.com/LimeiBBQReal/ai-burp-recon.git" HEAD:main
           fi
