@@ -8,7 +8,7 @@
 输出 (双层加密):
   out/subdomains.data.enc + out/subdomains.key.enc
 """
-from __future__ import annotations
+from typing import Any
 
 import os
 import subprocess
@@ -73,13 +73,15 @@ def _brute_dict(domain: str, wordlist: list[str]) -> dict[str, str]:
 
     def probe(sub: str) -> tuple[str, str | None]:
         ip = _resolve_subdomain(sub, domain)
-        return f"{sub}.{domain}", ip
+        return ip
 
     with ThreadPoolExecutor(max_workers=50) as ex:
-        futs = {ex.submit(probe, sub): sub for sub in wordlist}
-        for fut in as_completed(futs):
-            _, ip = fut.result()
-            sub = futs[fut]
+        futs_map: dict[Any, str] = {}
+        for sub in wordlist:
+            futs_map[ex.submit(probe, sub)] = sub
+        for fut in as_completed(futs_map):
+            ip = fut.result()
+            sub = futs_map[fut]
             if ip:
                 found[f"{sub}.{domain}"] = ip
     return found
