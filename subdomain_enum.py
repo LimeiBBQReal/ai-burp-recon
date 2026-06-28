@@ -24,7 +24,7 @@ from _common import get_target, write_encrypted, http_get
 SUBFINDER_BIN = Path(__file__).resolve().parent / "subfinder"
 SUBFINDER_URL = (
     "https://github.com/projectdiscovery/subfinder/releases/latest/download/"
-    "subfinder_2.7.0_linux_amd64.zip"
+    "subfinder_linux_amd64.zip"
 )
 
 
