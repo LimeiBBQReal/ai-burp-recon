@@ -40,8 +40,10 @@ def _load_dotenv():
     if _ENV_LOADED:
         return
     _ENV_LOADED = True
-    # 查找 .env 文件: recon/.env, project_root/.env, ~/.env
+    # 查找 .env 文件: <同一目录>/.env.local (Git 忽略), ~/.env
+    # .env / .env.local 都不进 Git
     candidates = [
+        ROOT / ".env.local",
         ROOT.parent / ".env",
         ROOT / ".env",
         Path.home() / ".env",

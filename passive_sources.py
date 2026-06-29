@@ -77,23 +77,6 @@ def _crt_sh(domain: str) -> set[str]:
     return results
 
 
-def _otx(domain: str) -> set[str]:
-    results: set[str] = set()
-    url = f"https://otx.alienvault.com/api/v1/indicators/domain/{domain}/passive_dns"
-    r = http_get(url, timeout=15)
-    if not r or r.status_code != 200:
-        return results
-    try:
-        for entry in r.json().get("passive_dns", []):
-            hostname = entry.get("hostname", "")
-            if hostname and hostname.endswith(f".{domain}"):
-                results.add(hostname.lower())
-    except Exception:
-        pass
-    print(f"  [OTX] {len(results)} 条", file=sys.stderr)
-    return results
-
-
 def _wayback(domain: str) -> set[str]:
     results: set[str] = set()
     for limit in (1000, 5000):
@@ -299,6 +282,56 @@ def _riddler(domain: str) -> set[str]:
     except Exception:
         pass
     print(f"  [Riddler] {len(results)} 条", file=sys.stderr)
+    return results
+
+
+def _fofa(domain: str) -> set[str]:
+    """Fofa.so — FOFA_EMAIL + FOFA_API_KEY."""
+    results: set[str] = set()
+    email = os.environ.get("FOFA_EMAIL", "")
+    key = os.environ.get("FOFA_API_KEY", "")
+    if not email or not key:
+        print("  [Fofa] 跳过 (无 FOFA_EMAIL/FOFA_API_KEY)", file=sys.stderr)
+        return results
+    try:
+        import base64, urllib.parse
+        qbase = base64.b64encode(f'host=.{domain}'.encode()).decode()
+        params = urllib.parse.urlencode({"email": email, "key": key, "qbase64": qbase, "page": 1, "size": 100})
+        r = http_get(f"https://fofa.info/api/v1/search/all?{params}", timeout=15)
+        if not r or r.status_code != 200:
+            return results
+        data = r.json()
+        for item in data.get("results", []):
+            host = item[0] if item else ""
+            if host and (host.endswith(f".{domain}") or host == domain):
+                results.add(host.lower())
+    except Exception:
+        pass
+    print(f"  [Fofa] {len(results)} 条", file=sys.stderr)
+    return results
+
+
+def _hunter(domain: str) -> set[str]:
+    """Hunter.io — HUNTER_API_KEY."""
+    results: set[str] = set()
+    key = os.environ.get("HUNTER_API_KEY", "")
+    if not key:
+        print("  [Hunter] 跳过 (无 HUNTER_API_KEY)", file=sys.stderr)
+        return results
+    try:
+        url = f"https://api.hunter.io/v2/domain-search?domain={domain}&api_key={key}"
+        r = http_get(url, timeout=15)
+        if not r or r.status_code != 200:
+            return results
+        for item in r.json().get("data", {}).get("domain_emails", []):
+            src = item.get("sources", [])
+            for s in src:
+                dom = s.get("domain", "")
+                if dom and dom.endswith(f".{domain}"):
+                    results.add(dom.lower())
+    except Exception:
+        pass
+    print(f"  [Hunter] {len(results)} 条", file=sys.stderr)
     return results
 
 

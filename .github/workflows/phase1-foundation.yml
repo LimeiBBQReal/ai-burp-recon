@@ -57,6 +57,14 @@ jobs:
           TARGET: ${{ inputs.target }}
           PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
+          SHODAN_API_KEY: ${{ secrets.SHODAN_API_KEY }}
+          CENSYS_API_KEY: ${{ secrets.CENSYS_API_KEY }}
+          OTX_API_KEY: ${{ secrets.OTX_API_KEY }}
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          SECURITYTRAILS_API_KEY: ${{ secrets.SECURITYTRAILS_API_KEY }}
+          FOFA_EMAIL: ${{ secrets.FOFA_EMAIL }}
+          FOFA_API_KEY: ${{ secrets.FOFA_API_KEY }}
+          HUNTER_API_KEY: ${{ secrets.HUNTER_API_KEY }}
         run: python passive_sources.py
       - name: Run CDN bypass
         env:
