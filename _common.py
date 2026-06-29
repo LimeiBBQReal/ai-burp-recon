@@ -105,3 +105,41 @@ def load_wordlist(name: str) -> list[str]:
     if not path.exists():
         return []
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+def _aes_key_bytes(raw_key: bytes) -> bytes:
+    return hashlib.sha256(raw_key).digest()[:32]
+
+
+def _decrypt_aes(data_enc: bytes, key: bytes) -> str:
+    iv = data_enc[:16]
+    ct = data_enc[16:]
+    cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
+    dec = cipher.decryptor()
+    padded = dec.update(ct) + dec.finalize()
+    unpadder = padding.PKCS7(128).unpadder()
+    plain = unpadder.update(padded) + unpadder.finalize()
+    return plain.decode("utf-8")
+
+
+def _decrypt_rsa(encrypted_key: bytes) -> bytes:
+    raw_key = os.environ.get("PROXY_AES_KEY", "")
+    if not raw_key:
+        print("[FATAL] PROXY_AES_KEY 未设置", file=sys.stderr)
+        sys.exit(1)
+    return _aes_key_bytes(raw_key.encode("utf-8"))
+
+
+def _read_encrypted(name: str) -> Any:
+    data_path = OUT_DIR / f"{name}.data.enc"
+    key_path = OUT_DIR / f"{name}.key.enc"
+    if not data_path.exists() or not key_path.exists():
+        print(f"[FATAL] {name}.data.enc 或 {name}.key.enc 不存在", file=sys.stderr)
+        sys.exit(1)
+    try:
+        aes_key = _decrypt_rsa(key_path.read_bytes())
+        plain = _decrypt_aes(data_path.read_bytes(), aes_key)
+        return json.loads(plain)
+    except Exception as e:
+        print(f"[FATAL] 解密 {name} 失败: {e}", file=sys.stderr)
+        sys.exit(1)

@@ -1,92 +1,71 @@
-"""Banner 抓取 — 服务指纹."""
 from __future__ import annotations
 
 import sys
 import time
-import socket
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from urllib.parse import urlparse
 
-from _common import get_target, write_encrypted
-
-PROBES = {
-    21: b"",
-    22: b"",
-    25: b"EHLO test\r\n",
-    80: b"GET / HTTP/1.0\r\n\r\n",
-    110: b"",
-    143: b"",
-    443: b"",
-    3306: b"",
-    5432: b"",
-    6379: b"PING\r\n",
-    9200: b"GET / HTTP/1.0\r\n\r\n",
-    27017: b"",
-}
+from _common import _read_encrypted, write_encrypted, http_get
 
 
-def grab_banner(host: str, port: int, timeout: float = 3.0) -> dict:
+def grab_banner(url: str, timeout: float = 8) -> dict:
+    result = {"url": url, "status": 0, "headers": {}, "body_size": 0, "error": None}
     try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(timeout)
-        s.connect((host, port))
-
-        try:
-            s.settimeout(2)
-            banner = s.recv(1024)
-        except socket.timeout:
-            banner = b""
-
-        probe = PROBES.get(port, b"")
-        response = b""
-        if probe:
-            try:
-                s.sendall(probe)
-                s.settimeout(2)
-                response = s.recv(4096)
-            except Exception:
-                response = b""
-
-        s.close()
-
-        return {
-            "port": port,
-            "banner": banner.decode("utf-8", errors="replace").strip()[:500],
-            "response": response.decode("utf-8", errors="replace").strip()[:500],
-        }
+        r = http_get(url, timeout=timeout, allow_redirects=True)
+        if not r:
+            result["error"] = "connection failed"
+            return result
+        result["status"] = r.status_code
+        result["headers"] = dict(r.headers)
+        body = r.text[:2000]
+        result["body_size"] = len(r.content)
+        result["body_preview"] = body[:500]
+        result["server"] = r.headers.get("Server", "")
+        result["content_type"] = r.headers.get("Content-Type", "")
+        result["title"] = extract_title(body)
     except Exception as e:
-        return {"port": port, "error": str(e)}
+        result["error"] = str(e)
+    return result
+
+
+def extract_title(html: str) -> str:
+    import re
+    m = re.search(r"<title[^>]*>(.*?)</title>", html, re.I | re.S)
+    return m.group(1).strip()[:200] if m else ""
 
 
 def main() -> int:
-    target = get_target()
+    print("[banner] 读取 http_fingerprint", file=sys.stderr)
+    fp = _read_encrypted("http_fingerprint")
+    target = fp.get("target", "")
     print(f"[banner] 目标: {target}", file=sys.stderr)
 
-    try:
-        ip = socket.gethostbyname(target)
-    except Exception as e:
-        print(f"[FATAL] 解析失败: {e}", file=sys.stderr)
-        return 1
+    live_urls: list[str] = []
+    for entry in fp.get("results", []):
+        url = entry.get("url", "")
+        if url:
+            live_urls.append(url)
 
-    ports_to_scan = [21, 22, 25, 80, 110, 143, 443, 3306, 5432, 6379, 9200, 27017]
+    print(f"[banner] 待抓取 URL: {len(live_urls)}", file=sys.stderr)
 
     t0 = time.time()
-    results = []
+    banners: list[dict] = []
 
-    with ThreadPoolExecutor(max_workers=20) as ex:
-        futs = {ex.submit(grab_banner, ip, port): port for port in ports_to_scan}
+    with ThreadPoolExecutor(max_workers=15) as ex:
+        futs = {ex.submit(grab_banner, url): url for url in live_urls}
         for fut in as_completed(futs):
             r = fut.result()
-            results.append(r)
-            if "banner" in r and r["banner"]:
-                print(f"  [{r['port']}] {r['banner'][:80]}", file=sys.stderr)
+            banners.append(r)
+            if r.get("status"):
+                print(f"  [{r['status']}] {r['url']} | {r.get('server','')[:60]}", file=sys.stderr)
 
     elapsed = time.time() - t0
-    print(f"\n[banner] 完成, {elapsed:.1f}s", file=sys.stderr)
+    print(f"\n[banner] {len(banners)} 完成, {elapsed:.1f}s", file=sys.stderr)
 
     write_encrypted("banners", {
         "target": target,
-        "ip": ip,
-        "results": results,
+        "total": len(banners),
+        "results": banners,
         "elapsed_s": round(elapsed, 1),
     })
     return 0

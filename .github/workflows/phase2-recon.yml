@@ -1,0 +1,110 @@
+name: Phase 2 - Recon
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: '目标域名'
+        default: 'CartManager.net'
+        required: true
+
+jobs:
+  verify_subdomains:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests cryptography dnspython
+      - name: Run verify subdomains
+        env:
+          TARGET: ${{ inputs.target }}
+          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
+        run: python verify_subdomains.py
+      - name: Commit results
+        if: always()
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          git config user.name "LimeiBBQReal"
+          git config user.email "LimeiBBQReal@users.noreply.github.com"
+          git add out/
+          if git diff --cached --quiet; then
+            echo "无变化, 跳过 commit"
+          else
+            git commit -m "recon: verify ${{ inputs.target }}"
+            git fetch origin main && git rebase origin/main || true
+            git push "https://LimeiBBQReal:${PAT_TOKEN}@github.com/LimeiBBQReal/ai-burp-recon.git" HEAD:main
+          fi
+
+  deep_subdomain:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [verify_subdomains]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests dnspython cryptography
+      - name: Run deep subdomain
+        env:
+          TARGET: ${{ inputs.target }}
+          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
+        run: python deep_subdomain.py
+      - name: Commit results
+        if: always()
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          git config user.name "LimeiBBQReal"
+          git config user.email "LimeiBBQReal@users.noreply.github.com"
+          git add out/
+          if git diff --cached --quiet; then
+            echo "无变化, 跳过 commit"
+          else
+            git commit -m "recon: deep ${{ inputs.target }}"
+            git fetch origin main && git rebase origin/main || true
+            git push "https://LimeiBBQReal:${PAT_TOKEN}@github.com/LimeiBBQReal/ai-burp-recon.git" HEAD:main
+          fi
+
+  http_fingerprint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [deep_subdomain]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests cryptography
+      - name: Run HTTP fingerprint
+        env:
+          TARGET: ${{ inputs.target }}
+          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
+        run: python http_fingerprint.py
+      - name: Commit results
+        if: always()
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: |
+          git config user.name "LimeiBBQReal"
+          git config user.email "LimeiBBQReal@users.noreply.github.com"
+          git add out/
+          if git diff --cached --quiet; then
+            echo "无变化, 跳过 commit"
+          else
+            git commit -m "recon: http ${{ inputs.target }}"
+            git fetch origin main && git rebase origin/main || true
+            git push "https://LimeiBBQReal:${PAT_TOKEN}@github.com/LimeiBBQReal/ai-burp-recon.git" HEAD:main
+          fi

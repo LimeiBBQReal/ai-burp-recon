@@ -1,66 +1,92 @@
-"""JS/CSS URL 提取 + 解析."""
 from __future__ import annotations
 
+import re
 import sys
 import time
-import re
 from urllib.parse import urljoin
 
-from _common import get_target, http_get, write_encrypted
+from _common import _read_encrypted, write_encrypted, http_get
 
-URL_RE = re.compile(r"""(['"`])((?:https?:)?//[^'"`\s]+|/[a-zA-Z0-9_\-./?=&%]+)\1""")
+URL_RE = re.compile(r"""(['"`])((?:https?:)?//[^'"`\s]+|/[a-zA-Z0-9_\-./?=&%#+]+)\1""")
+REL_PATH_RE = re.compile(r"""(['"`])((?:\.\.?/)[^'"`\s]+)\1""")
 
 
-def extract_from_url(url: str) -> dict:
-    r = http_get(url)
+def extract_from_js(js_url: str) -> dict:
+    r = http_get(js_url, timeout=10)
     if not r or r.status_code != 200:
-        return {"url": url, "status": r.status_code if r else 0, "urls": []}
+        return {"url": js_url, "status": r.status_code if r else 0, "extracted": []}
 
     text = r.text
-    urls = list(set(m[1] for m in URL_RE.findall(text)))
+    urls: set[str] = set()
+
+    for m in URL_RE.findall(text):
+        raw = m[1].strip()
+        if raw.startswith("//"):
+            raw = "https:" + raw
+        if raw.startswith(("http://", "https://")):
+            urls.add(raw)
+        elif raw.startswith("/"):
+            abs_url = urljoin(js_url, raw)
+            urls.add(abs_url)
+
+    for m in REL_PATH_RE.findall(text):
+        raw = m[1].strip()
+        abs_url = urljoin(js_url, raw)
+        if abs_url.startswith(("http://", "https://")):
+            urls.add(abs_url)
 
     return {
-        "url": url,
+        "url": js_url,
         "status": r.status_code,
         "size": len(text),
-        "urls": urls,
+        "extracted": sorted(urls),
     }
 
 
 def main() -> int:
-    target = get_target()
+    print("[js] 读取 urls", file=sys.stderr)
+    udata = _read_encrypted("urls")
+    target = udata.get("target", "")
     print(f"[js] 目标: {target}", file=sys.stderr)
 
-    base = f"https://{target}"
-    home = http_get(base)
-    if not home:
-        print(f"[FATAL] 无法访问 {base}", file=sys.stderr)
-        return 1
+    all_urls = udata.get("urls", [])
+    js_urls = sorted(set(
+        u for u in all_urls
+        if any(u.lower().split("?")[0].endswith(ext) for ext in (".js", ".mjs"))
+    ))
 
-    js_css_links = re.findall(r"""<script[^>]+src=['"]([^'"]+)['"]""", home.text)
-    js_css_links += re.findall(r"""<link[^>]+href=['"]([^'"]+\.css)['"]""", home.text)
+    if not js_urls:
+        print("[js] 未发现 JS 文件", file=sys.stderr)
+        write_encrypted("js_urls", {
+            "target": target,
+            "files_scanned": 0,
+            "unique_urls": [],
+            "elapsed_s": 0,
+        })
+        return 0
 
-    abs_urls = [urljoin(base, u) for u in js_css_links]
-    print(f"[js] 发现 {len(abs_urls)} 个 JS/CSS", file=sys.stderr)
+    print(f"[js] JS 文件: {len(js_urls)}", file=sys.stderr)
 
     t0 = time.time()
-    all_results = []
-    for url in abs_urls[:50]:
-        result = extract_from_url(url)
-        all_results.append(result)
-        print(f"  [{result['status']}] {url}: {len(result['urls'])} URLs", file=sys.stderr)
+    results: list[dict] = []
 
-    all_urls = set()
-    for r in all_results:
-        all_urls.update(r["urls"])
+    for js_url in js_urls[:100]:
+        r = extract_from_js(js_url)
+        results.append(r)
+        print(f"  [{r['status']}] {js_url}: {len(r['extracted'])} URLs", file=sys.stderr)
+
+    all_extracted: set[str] = set()
+    for r in results:
+        all_extracted.update(r["extracted"])
 
     elapsed = time.time() - t0
-    print(f"\n[js] {len(all_urls)} URLs, {elapsed:.1f}s", file=sys.stderr)
+    print(f"\n[js] {len(results)} 文件, {len(all_extracted)} 提取 URL, {elapsed:.1f}s", file=sys.stderr)
 
     write_encrypted("js_urls", {
         "target": target,
-        "files_scanned": len(all_results),
-        "unique_urls": sorted(all_urls),
+        "files_scanned": len(results),
+        "unique_urls": sorted(all_extracted),
+        "details": results,
         "elapsed_s": round(elapsed, 1),
     })
     return 0
