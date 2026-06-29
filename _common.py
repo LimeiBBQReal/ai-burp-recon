@@ -122,10 +122,28 @@ def _decrypt_aes(data_enc: bytes, key: bytes) -> str:
     return plain.decode("utf-8")
 
 
+def _find_private_key() -> bytes | None:
+    for p in (os.path.expanduser("~/.recon/recon_private.pem"),):
+        if Path(p).exists():
+            return Path(p).read_bytes()
+    return None
+
+
 def _decrypt_rsa(encrypted_key: bytes) -> bytes:
+    priv_pem = _find_private_key()
+    if priv_pem:
+        priv = serialization.load_pem_private_key(priv_pem, password=None)
+        return priv.decrypt(
+            encrypted_key,
+            asym_padding.OAEP(
+                mgf=asym_padding.MGF1(algorithm=hashes.SHA256()),
+                algorithm=hashes.SHA256(),
+                label=None,
+            ),
+        )
     raw_key = os.environ.get("PROXY_AES_KEY", "")
     if not raw_key:
-        print("[FATAL] PROXY_AES_KEY 未设置", file=sys.stderr)
+        print("[FATAL] 缺少 RSA 私钥且 PROXY_AES_KEY 未设置", file=sys.stderr)
         sys.exit(1)
     return _aes_key_bytes(raw_key.encode("utf-8"))
 

@@ -24,67 +24,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
-from _common import get_target, write_encrypted, http_get
-
-try:
-    from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-    from cryptography.hazmat.primitives import padding, serialization, hashes
-    from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
-except ImportError:
-    print("[FATAL] 缺少 cryptography, 请 pip install cryptography", file=sys.stderr)
-    sys.exit(1)
-
-
-def _find_private_key() -> bytes | None:
-    candidates = [
-        os.path.expanduser("~/.recon/recon_private.pem"),
-    ]
-    for c in candidates:
-        if os.path.exists(c):
-            return Path(c).read_bytes()
-    return None
-
-
-def _read_encrypted(name: str) -> dict | None:
-    p = Path(__file__).resolve().parent
-    enc = p / "out" / f"{name}.data.enc"
-    key_f = p / "out" / f"{name}.key.enc"
-    if not enc.exists() or not key_f.exists():
-        print(f"  [WARN] 文件不存在: {enc.name} / {key_f.name}", file=sys.stderr)
-        return None
-
-    pub_b64 = os.environ.get("RECON_RSA_PUBLIC", "")
-    if not pub_b64:
-        print("  [WARN] RECON_RSA_PUBLIC 未设置, 跳过解密", file=sys.stderr)
-        return None
-
-    priv_pem = _find_private_key()
-    if not priv_pem:
-        print("  [WARN] 未找到 RSA 私钥, 跳过解密", file=sys.stderr)
-        return None
-
-    try:
-        priv = serialization.load_pem_private_key(priv_pem, password=None)
-        key_bytes = key_f.read_bytes()
-        aes_key = priv.decrypt(
-            key_bytes,
-            asym_padding.OAEP(
-                mgf=asym_padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None,
-            ),
-        )
-        data = enc.read_bytes()
-        iv, ct = data[:16], data[16:]
-        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
-        dec = cipher.decryptor()
-        padded = dec.update(ct) + dec.finalize()
-        unpadder = padding.PKCS7(128).unpadder()
-        plain = unpadder.update(padded) + unpadder.finalize()
-        return json.loads(plain)
-    except Exception as e:
-        print(f"  [WARN] 解密 {name}: {e}", file=sys.stderr)
-        return None
+from _common import get_target, write_encrypted, http_get, _read_encrypted
 
 
 def _extract_title(html: str) -> str:

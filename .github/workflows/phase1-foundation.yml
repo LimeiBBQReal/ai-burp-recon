@@ -19,12 +19,12 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install requests dnspython cryptography
-      - name: Run DNS enum
+      - name: Run DNS authoritative
         env:
           TARGET: ${{ inputs.target }}
           PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
-        run: python dns_enum.py
+        run: python dns_authoritative.py
       - name: Commit results
         if: always()
         env:
@@ -41,10 +41,9 @@ jobs:
             git push "https://LimeiBBQReal:${PAT_TOKEN}@github.com/LimeiBBQReal/ai-burp-recon.git" HEAD:main
           fi
 
-  subdomain_enum:
+  passive_sources:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [dns_authoritative]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,13 +51,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install requests dnspython cryptography
-      - name: Run subdomain enum
+      - run: pip install requests cryptography
+      - name: Run passive sources
         env:
           TARGET: ${{ inputs.target }}
           PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
-        run: python subdomain_enum.py
+        run: python passive_sources.py
       - name: Commit results
         if: always()
         env:
@@ -70,7 +69,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "无变化, 跳过 commit"
           else
-            git commit -m "recon: subdomain ${{ inputs.target }}"
+            git commit -m "recon: passive ${{ inputs.target }}"
             git fetch origin main && git rebase origin/main || true
             git push "https://LimeiBBQReal:${PAT_TOKEN}@github.com/LimeiBBQReal/ai-burp-recon.git" HEAD:main
           fi
@@ -78,7 +77,7 @@ jobs:
   cidr_scan:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: [subdomain_enum]
+    needs: [dns_authoritative]
     steps:
       - uses: actions/checkout@v4
         with:
