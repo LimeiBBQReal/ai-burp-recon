@@ -104,6 +104,10 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install requests cryptography
+      - name: Pull latest (includes dns_authoritative output)
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: git pull "https://LimeiBBQReal:${PAT_TOKEN}@github.com/LimeiBBQReal/ai-burp-recon.git" main
       - name: Run CIDR scan
         env:
           TARGET: ${{ inputs.target }}
@@ -139,6 +143,10 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install requests dnspython cryptography
+      - name: Pull latest (includes cidr_scan output)
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_TOKEN }}
+        run: git pull "https://LimeiBBQReal:${PAT_TOKEN}@github.com/LimeiBBQReal/ai-burp-recon.git" main
       - name: Run PTR expansion
         env:
           TARGET: ${{ inputs.target }}
