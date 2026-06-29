@@ -1,4 +1,5 @@
 name: Phase 1 - Foundation
+
 on:
   workflow_dispatch:
     inputs:
@@ -24,7 +25,6 @@ jobs:
           TARGET: ${{ inputs.target }}
           RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
           PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
         run: python dns_authoritative.py
       - name: Commit results
@@ -60,7 +60,6 @@ jobs:
           RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
           PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
           SHODAN_API_KEY: ${{ secrets.SHODAN_API_KEY }}
           CENSYS_API_KEY: ${{ secrets.CENSYS_API_KEY }}
           OTX_API_KEY: ${{ secrets.OTX_API_KEY }}
@@ -75,7 +74,6 @@ jobs:
           TARGET: ${{ inputs.target }}
           RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
           PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
         run: python bypass_cdn.py
       - name: Commit results
@@ -112,7 +110,6 @@ jobs:
           RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
           PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
         run: python cidr_scan.py
       - name: Commit results
         if: always()
@@ -147,7 +144,6 @@ jobs:
           TARGET: ${{ inputs.target }}
           RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
           PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
         run: python ptr_expand.py
       - name: Commit results
