@@ -41,7 +41,7 @@ jobs:
             git push "https://LimeiBBQReal:${PAT_TOKEN}@github.com/LimeiBBQReal/ai-burp-recon.git" HEAD:main
           fi
 
-  passive_sources:
+  passive_sources_and_cdn:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -51,13 +51,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install requests cryptography
+      - run: pip install requests dnspython cryptography
       - name: Run passive sources
         env:
           TARGET: ${{ inputs.target }}
           PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
         run: python passive_sources.py
+      - name: Run CDN bypass
+        env:
+          TARGET: ${{ inputs.target }}
+          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
+        run: python bypass_cdn.py
       - name: Commit results
         if: always()
         env:
@@ -69,7 +75,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "无变化, 跳过 commit"
           else
-            git commit -m "recon: passive ${{ inputs.target }}"
+            git commit -m "recon: phase1 ${{ inputs.target }}"
             git fetch origin main && git rebase origin/main || true
             git push "https://LimeiBBQReal:${PAT_TOKEN}@github.com/LimeiBBQReal/ai-burp-recon.git" HEAD:main
           fi
