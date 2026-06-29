@@ -323,8 +323,13 @@ def main() -> int:
     t0 = time.time()
     print(f"[bypass_cdn] 目标: {target}", file=sys.stderr)
 
-    # 获取 DNS 权威数据
-    dns_data = _read_encrypted("dns_authoritative")
+    # 获取 DNS 权威数据（可能和 dns_authoritative 并行，文件不一定存在）
+    dns_data: dict | None = None
+    try:
+        dns_data = _read_encrypted("dns_authoritative")
+    except SystemExit:
+        print("  [WARN] dns_authoritative 不可用（并行运行）", file=sys.stderr)
+        dns_data = None
     cdn_ips: set[str] = set()
     real_ips: set[str] = set()
     candidate_ips: set[str] = set()

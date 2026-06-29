@@ -24,6 +24,7 @@ jobs:
           TARGET: ${{ inputs.target }}
           RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
+          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
         run: python verify_subdomains.py
       - name: Commit results
         if: always()
@@ -58,6 +59,7 @@ jobs:
           TARGET: ${{ inputs.target }}
           RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
+          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
         run: python deep_subdomain.py
       - name: Commit results
         if: always()
@@ -92,6 +94,7 @@ jobs:
           TARGET: ${{ inputs.target }}
           RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
+          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
         run: python http_fingerprint.py
       - name: Commit results
         if: always()

@@ -172,6 +172,17 @@ def _decrypt_rsa(encrypted_key: bytes) -> bytes:
     )
 
 
+def _legacy_aes_key() -> bytes | None:
+    """向后兼容: 从 PROXY_AES_KEY 派生密钥（旧加密方案）。
+    仅用于过渡期读取旧加密文件。新文件走 RSA 解密路径。"""
+    import hashlib
+    raw = os.environ.get("PROXY_AES_KEY", "")
+    if not raw:
+        return None
+    print("  [WARN] 使用 PROXY_AES_KEY 向后兼容解密（旧文件）", file=sys.stderr)
+    return hashlib.sha256(raw.encode("utf-8")).digest()[:32]
+
+
 def _read_encrypted(name: str) -> Any:
     data_path = OUT_DIR / f"{name}.data.enc"
     key_path = OUT_DIR / f"{name}.key.enc"
@@ -180,8 +191,11 @@ def _read_encrypted(name: str) -> Any:
         sys.exit(1)
     try:
         aes_key = _decrypt_rsa(key_path.read_bytes())
-        plain = _decrypt_aes(data_path.read_bytes(), aes_key)
-        return json.loads(plain)
     except Exception as e:
-        print(f"[FATAL] 解密 {name} 失败: {e}", file=sys.stderr)
-        sys.exit(1)
+        print(f"  [WARN] RSA 解密失败 ({e}), 尝试向后兼容...", file=sys.stderr)
+        aes_key = _legacy_aes_key()
+        if aes_key is None:
+            print(f"[FATAL] 解密 {name} 失败: RSA 密钥不匹配且无 PROXY_AES_KEY 回退", file=sys.stderr)
+            sys.exit(1)
+    plain = _decrypt_aes(data_path.read_bytes(), aes_key)
+    return json.loads(plain)
