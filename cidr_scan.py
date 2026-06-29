@@ -21,6 +21,8 @@ from pathlib import Path
 from typing import Any
 
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 from _common import get_target, write_encrypted, http_get, _read_encrypted
 
@@ -76,7 +78,7 @@ def _tcp_alive(ip: str, port: int, timeout: float = 1.5) -> bool:
 
 def _http_title(url: str, timeout: float = 4) -> str | None:
     try:
-        r = http_get(url, timeout=timeout)
+        r = http_get(url, timeout=timeout, verify=False)
         if r and r.status_code < 500:
             content = r.text
             m = re.search(r"<title[^>]*>(.*?)</title>", content, re.IGNORECASE | re.DOTALL)
