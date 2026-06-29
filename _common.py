@@ -177,9 +177,8 @@ def _legacy_aes_key() -> bytes | None:
     仅用于过渡期读取旧加密文件。新文件走 RSA 解密路径。"""
     import hashlib
     raw = os.environ.get("PROXY_AES_KEY", "")
-    if not raw:
-        return None
-    print("  [WARN] 使用 PROXY_AES_KEY 向后兼容解密（旧文件）", file=sys.stderr)
+    if raw:
+        print("  [WARN] 使用 PROXY_AES_KEY 向后兼容解密（旧文件）", file=sys.stderr)
     return hashlib.sha256(raw.encode("utf-8")).digest()[:32]
 
 
