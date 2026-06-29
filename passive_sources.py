@@ -116,13 +116,17 @@ def _wayback(domain: str) -> set[str]:
 
 
 def _securitytrails(domain: str) -> set[str]:
+    """SecurityTrails API — 从 .env SECURITYTRAILS_API_KEY."""
     results: set[str] = set()
     key = os.environ.get("SECURITYTRAILS_API_KEY", "")
-    headers = {"APIKEY": key} if key else {}
+    if not key:
+        print("  [SecurityTrails] 跳过 (无 SECURITYTRAILS_API_KEY)", file=sys.stderr)
+        return results
+    headers = {"APIKEY": key}
     url = f"https://api.securitytrails.com/v1/domain/{domain}/subdomains"
     r = http_get(url, timeout=15, headers=headers)
     if not r or r.status_code != 200:
-        print(f"  [SecurityTrails] 跳过 (status {getattr(r, 'status_code', 'N/A')}, 需 API key)", file=sys.stderr)
+        print("  [SecurityTrails] 请求失败", file=sys.stderr)
         return results
     try:
         for sub in r.json().get("subdomains", []):
@@ -173,52 +177,93 @@ def _dnsdumpster(domain: str) -> set[str]:
 
 
 def _shodan(domain: str) -> set[str]:
-    """Shodan 公共 API — hostname 搜索 (免费计划有限)."""
+    """Shodan API — 搜索 hostname 关联 IP 和子域名."""
     results: set[str] = set()
     key = os.environ.get("SHODAN_API_KEY", "")
     if not key:
         print("  [Shodan] 跳过 (无 SHODAN_API_KEY)", file=sys.stderr)
         return results
-    url = f"https://api.shodan.io/shodan/host/search?key={key}&query=hostname%3A{domain}"
-    r = http_get(url, timeout=15)
-    if not r or r.status_code != 200:
-        return results
-    try:
-        data = r.json()
-        for match in data.get("matches", []):
-            hostnames = match.get("hostnames", [])
-            for hn in hostnames:
-                hn = hn.lower().strip()
-                if hn.endswith(f".{domain}"):
-                    results.add(hn)
-    except Exception:
-        pass
+    # 搜索: 解析历史 + hostname
+    for query in (f"hostname%3A{domain}", f"ssl%3A{domain}"):
+        url = f"https://api.shodan.io/shodan/host/search?key={key}&query={query}"
+        r = http_get(url, timeout=15)
+        if not r or r.status_code != 200:
+            continue
+        try:
+            data = r.json()
+            for match in data.get("matches", []):
+                for hn in match.get("hostnames", []):
+                    hn = hn.lower().strip()
+                    if hn.endswith(f".{domain}") and hn != domain:
+                        results.add(hn)
+        except Exception:
+            pass
     print(f"  [Shodan] {len(results)} 条", file=sys.stderr)
     return results
 
 
 def _censys(domain: str) -> set[str]:
-    """Censys IPv4 API — 免费, 不带 key 也能查到一些."""
+    """Censys API — 新版单 Key 认证."""
     results: set[str] = set()
-    uid = os.environ.get("CENSYS_API_ID", "")
-    secret = os.environ.get("CENSYS_API_SECRET", "")
-    if uid and secret:
-        from requests.auth import HTTPBasicAuth
-        auth = HTTPBasicAuth(uid, secret)
+    key = os.environ.get("CENSYS_API_KEY", "")
+    if not key:
+        print("  [Censys] 跳过 (无 CENSYS_API_KEY)", file=sys.stderr)
+        return results
+    try:
         url = f"https://search.censys.io/api/v2/hosts/search?q=dns.names:{domain}&per_page=100"
-        r = http_get(url, timeout=15, auth=auth)
+        r = http_get(url, timeout=15, headers={"Accept": "application/json", "Authorization": f"Bearer {key}"})
         if r and r.status_code == 200:
-            try:
-                for hit in r.json().get("result", {}).get("hits", []):
-                    for name in hit.get("dns", {}).get("names", []):
-                        name = name.lower().strip()
-                        if name.endswith(f".{domain}") and name != domain:
-                            results.add(name)
-            except Exception:
-                pass
-    else:
-        print("  [Censys] 跳过 (无 CENSYS_API_ID/SECRET)", file=sys.stderr)
+            for hit in r.json().get("result", {}).get("hits", []):
+                for name in hit.get("dns", {}).get("names", []):
+                    name = name.lower().strip()
+                    if name.endswith(f".{domain}") and name != domain:
+                        results.add(name)
+    except Exception:
+        pass
     print(f"  [Censys] {len(results)} 条", file=sys.stderr)
+    return results
+
+
+def _otx(domain: str) -> set[str]:
+    """AlienVault OTX — 带 API Key 提高请求限额."""
+    results: set[str] = set()
+    key = os.environ.get("OTX_API_KEY", "")
+    headers = {"X-OTX-API-KEY": key} if key else {}
+    url = f"https://otx.alienvault.com/api/v1/indicators/domain/{domain}/passive_dns"
+    r = http_get(url, timeout=15, headers=headers)
+    if not r or r.status_code != 200:
+        print("  [OTX] 请求失败", file=sys.stderr)
+        return results
+    try:
+        for entry in r.json().get("passive_dns", []):
+            hostname = entry.get("hostname", "")
+            if hostname and hostname.endswith(f".{domain}"):
+                results.add(hostname.lower())
+    except Exception:
+        pass
+    print(f"  [OTX] {len(results)} 条 (key={bool(key)})", file=sys.stderr)
+    return results
+
+
+def _virustotal(domain: str) -> set[str]:
+    """VirusTotal API — subdomain 解析."""
+    results: set[str] = set()
+    key = os.environ.get("VIRUSTOTAL_API_KEY", "")
+    if not key:
+        print("  [VT] 跳过 (无 VIRUSTOTAL_API_KEY)", file=sys.stderr)
+        return results
+    url = f"https://www.virustotal.com/api/v3/domains/{domain}/subdomains?limit=40"
+    r = http_get(url, timeout=15, headers={"x-apikey": key})
+    if not r or r.status_code != 200:
+        return results
+    try:
+        for item in r.json().get("data", []):
+            sub = item.get("id", "")
+            if sub and sub.endswith(f".{domain}") and sub != domain:
+                results.add(sub.lower())
+    except Exception:
+        pass
+    print(f"  [VT] {len(results)} 条", file=sys.stderr)
     return results
 
 
@@ -365,9 +410,12 @@ def main() -> int:
         _censys: "Censys",
         _rapiddns: "RapidDNS",
         _riddler: "Riddler",
+        _virustotal: "VirusTotal",
+        _fofa: "Fofa",
+        _hunter: "Hunter",
     }
 
-    with ThreadPoolExecutor(max_workers=10) as ex:
+    with ThreadPoolExecutor(max_workers=13) as ex:
         futs = {ex.submit(fn, target): name for fn, name in passive_fns.items()}
         for fut in as_completed(futs):
             name = futs[fut]

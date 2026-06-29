@@ -31,6 +31,37 @@ ROOT = Path(__file__).resolve().parent
 OUT_DIR = ROOT / "out"
 OUT_DIR.mkdir(exist_ok=True)
 
+# 自动加载 .env
+_ENV_LOADED = False
+
+
+def _load_dotenv():
+    global _ENV_LOADED
+    if _ENV_LOADED:
+        return
+    _ENV_LOADED = True
+    # 查找 .env 文件: recon/.env, project_root/.env, ~/.env
+    candidates = [
+        ROOT.parent / ".env",
+        ROOT / ".env",
+        Path.home() / ".env",
+    ]
+    for env_path in candidates:
+        if env_path.exists():
+            for line in env_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, val = line.partition("=")
+                key = key.strip()
+                val = val.strip().strip("'\"")
+                if key and val and key not in os.environ:
+                    os.environ[key] = val
+            break
+
+
+_load_dotenv()
+
 
 def _aes_key() -> bytes:
     raw = os.environ.get("PROXY_AES_KEY", "")
