@@ -2,20 +2,18 @@
 
 加密流程:
   明文 JSON
-    → AES-256-CBC 加密 (key = sha256(PROXY_AES_KEY)[:32])
+    → AES-256-CBC 加密 (key = 随机 32 字节)
     → RSA-2048 加密 AES key (pubkey = RECON_RSA_PUBLIC)
 
 输出两个文件:
   out/<name>.data.enc  # AES 密文
-  out/<name>.key.enc   # RSA 加密的 AES key
+  out/<name>.key.enc   # RSA 加密的 AES key (256 bytes)
 
-只有同时持有 RSA 私钥 + PROXY_AES_KEY 才能解密.
-PROXY_AES_KEY 单凭它解不开, 还得有 RSA 私钥.
+解密需要 RSA 私钥 (RECON_RSA_PRIVATE 环境变量 或 ~/.recon/recon_private.pem).
 """
 from __future__ import annotations
 
 import base64
-import hashlib
 import json
 import os
 import sys
@@ -65,16 +63,12 @@ def _load_dotenv():
 _load_dotenv()
 
 
-def _aes_key() -> bytes:
-    raw = os.environ.get("PROXY_AES_KEY", "")
-    if not raw:
-        print("[FATAL] PROXY_AES_KEY 未设置", file=sys.stderr)
-        sys.exit(1)
-    return hashlib.sha256(raw.encode("utf-8")).digest()[:32]
+def _generate_aes_key() -> bytes:
+    """每次调用生成一个随机 32 字节 AES 密钥"""
+    return os.urandom(32)
 
 
-def aes_encrypt(plaintext: str) -> bytes:
-    key = _aes_key()
+def aes_encrypt(plaintext: str, key: bytes) -> bytes:
     iv = os.urandom(16)
     padder = padding.PKCS7(128).padder()
     padded = padder.update(plaintext.encode("utf-8")) + padder.finalize()
@@ -103,8 +97,9 @@ def rsa_encrypt_key(aes_key_bytes: bytes) -> bytes:
 
 def write_encrypted(name: str, data: Any) -> tuple[Path, Path]:
     text = json.dumps(data, ensure_ascii=False, indent=2) if not isinstance(data, str) else data
-    encrypted_data = aes_encrypt(text)
-    encrypted_key = rsa_encrypt_key(_aes_key())
+    aes_key = _generate_aes_key()
+    encrypted_data = aes_encrypt(text, aes_key)
+    encrypted_key = rsa_encrypt_key(aes_key)
 
     data_path = OUT_DIR / f"{name}.data.enc"
     key_path = OUT_DIR / f"{name}.key.enc"
@@ -140,10 +135,6 @@ def load_wordlist(name: str) -> list[str]:
     return [line.strip() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def _aes_key_bytes(raw_key: bytes) -> bytes:
-    return hashlib.sha256(raw_key).digest()[:32]
-
-
 def _decrypt_aes(data_enc: bytes, key: bytes) -> str:
     iv = data_enc[:16]
     ct = data_enc[16:]
@@ -156,6 +147,9 @@ def _decrypt_aes(data_enc: bytes, key: bytes) -> str:
 
 
 def _find_private_key() -> bytes | None:
+    priv_b64 = os.environ.get("RECON_RSA_PRIVATE", "")
+    if priv_b64:
+        return base64.b64decode(priv_b64)
     for p in (os.path.expanduser("~/.recon/recon_private.pem"),):
         if Path(p).exists():
             return Path(p).read_bytes()
@@ -164,21 +158,18 @@ def _find_private_key() -> bytes | None:
 
 def _decrypt_rsa(encrypted_key: bytes) -> bytes:
     priv_pem = _find_private_key()
-    if priv_pem:
-        priv = serialization.load_pem_private_key(priv_pem, password=None)
-        return priv.decrypt(
-            encrypted_key,
-            asym_padding.OAEP(
-                mgf=asym_padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None,
-            ),
-        )
-    raw_key = os.environ.get("PROXY_AES_KEY", "")
-    if not raw_key:
-        print("[FATAL] 缺少 RSA 私钥且 PROXY_AES_KEY 未设置", file=sys.stderr)
+    if not priv_pem:
+        print("[FATAL] RSA 私钥未找到 (检查 RECON_RSA_PRIVATE 环境变量或 ~/.recon/recon_private.pem)", file=sys.stderr)
         sys.exit(1)
-    return _aes_key_bytes(raw_key.encode("utf-8"))
+    priv = serialization.load_pem_private_key(priv_pem, password=None)
+    return priv.decrypt(
+        encrypted_key,
+        asym_padding.OAEP(
+            mgf=asym_padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None,
+        ),
+    )
 
 
 def _read_encrypted(name: str) -> Any:

@@ -9,7 +9,6 @@ Output:
 """
 from __future__ import annotations
 
-import base64
 import ipaddress
 import json
 import os
@@ -23,96 +22,35 @@ from typing import Any
 
 import requests
 
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import padding, serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import padding as asym_padding
-
-from _common import get_target, write_encrypted, http_get
+from _common import get_target, write_encrypted, http_get, _read_encrypted
 
 ROOT = Path(__file__).resolve().parent
 OUT_DIR = ROOT / "out"
 
 
-def _find_private_key() -> bytes | None:
-    candidates = [
-        os.path.expanduser("~/.recon/recon_private.pem"),
-        os.path.expanduser("~/.ssh/recon_private.pem"),
-        "/root/.recon/recon_private.pem",
-    ]
-    for c in candidates:
-        if os.path.exists(c):
-            return Path(c).read_bytes()
-    return None
-
-
-def _decrypt_data_enc(data_path: Path, key_path: Path) -> dict[str, Any] | None:
-    if not data_path.exists() or not key_path.exists():
-        return None
-    try:
-        priv_pem = _find_private_key()
-        if not priv_pem:
-            print("  [ERR] 未找到 RSA 私钥", file=sys.stderr)
-            return None
-
-        priv = serialization.load_pem_private_key(priv_pem, password=None)
-        key_enc = key_path.read_bytes()
-        aes_key = priv.decrypt(
-            key_enc,
-            asym_padding.OAEP(
-                mgf=asym_padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None,
-            ),
-        )
-        data_enc = data_path.read_bytes()
-        iv = data_enc[:16]
-        ct = data_enc[16:]
-        cipher = Cipher(algorithms.AES(aes_key), modes.CBC(iv))
-        dec = cipher.decryptor()
-        padded = dec.update(ct) + dec.finalize()
-        unpadder = padding.PKCS7(128).unpadder()
-        plain = unpadder.update(padded) + unpadder.finalize()
-        return json.loads(plain)
-    except Exception as e:
-        print(f"  [ERR] 解密失败: {e}", file=sys.stderr)
-        return None
-
-
 def _load_target_ips() -> set[str]:
     ips: set[str] = set()
-
-    dns_auth_data = OUT_DIR / "dns_authoritative.data.enc"
-    dns_auth_key = OUT_DIR / "dns_authoritative.key.enc"
-
-    data_path: Path | None = None
-    key_path: Path | None = None
-
-    if dns_auth_data.exists() and dns_auth_key.exists():
-        data_path = dns_auth_data
-        key_path = dns_auth_key
-    else:
-        dns_data = OUT_DIR / "dns.data.enc"
-        dns_key = OUT_DIR / "dns.key.enc"
-        if dns_data.exists() and dns_key.exists():
-            data_path = dns_data
-            key_path = dns_key
-
-    if data_path and key_path:
-        obj = _decrypt_data_enc(data_path, key_path)
-        if obj:
-            raw_ips = obj.get("target_ips", [])
-            if isinstance(raw_ips, list):
-                for ip in raw_ips:
-                    if isinstance(ip, str):
-                        ips.add(ip)
-
-            records = obj.get("records", {})
-            if isinstance(records, dict):
-                for domain, recs in records.items():
-                    if isinstance(recs, list):
-                        for rec in recs:
-                            if isinstance(rec, dict) and rec.get("type") == "A" and not rec.get("wildcard"):
-                                ips.add(rec["value"])
+    for name in ("dns_authoritative", "dns"):
+        try:
+            obj = _read_encrypted(name)
+        except (SystemExit, Exception):
+            continue
+        if not obj:
+            continue
+        raw_ips = obj.get("target_ips", [])
+        if isinstance(raw_ips, list):
+            for ip in raw_ips:
+                if isinstance(ip, str):
+                    ips.add(ip)
+        records = obj.get("records", {})
+        if isinstance(records, dict):
+            for domain, recs in records.items():
+                if isinstance(recs, list):
+                    for rec in recs:
+                        if isinstance(rec, dict) and rec.get("type") == "A" and not rec.get("wildcard"):
+                            ips.add(rec["value"])
+        if ips:
+            return ips
 
     if not ips:
         try:
@@ -122,7 +60,6 @@ def _load_target_ips() -> set[str]:
         except Exception as e:
             print(f"[FATAL] 无可用 IP: {e}", file=sys.stderr)
             sys.exit(1)
-
     return ips
 
 

@@ -22,7 +22,7 @@ jobs:
       - name: Run port scan
         env:
           TARGET: ${{ inputs.target }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
         run: python port_scan.py
       - name: Commit results
@@ -56,7 +56,7 @@ jobs:
       - name: Run banner grab
         env:
           TARGET: ${{ inputs.target }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
         run: python banner_grab.py
       - name: Commit results
@@ -90,7 +90,7 @@ jobs:
       - name: Run dir brute
         env:
           TARGET: ${{ inputs.target }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
         run: python dir_brute.py
       - name: Commit results
@@ -124,7 +124,7 @@ jobs:
       - name: Run URL collect
         env:
           TARGET: ${{ inputs.target }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
         run: python url_collect.py
       - name: Commit results
@@ -158,7 +158,7 @@ jobs:
       - name: Run param brute
         env:
           TARGET: ${{ inputs.target }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
         run: python param_brute.py
       - name: Commit results
@@ -192,7 +192,7 @@ jobs:
       - name: Run JS extract
         env:
           TARGET: ${{ inputs.target }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
         run: python js_extract.py
       - name: Commit results

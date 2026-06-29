@@ -22,7 +22,7 @@ jobs:
       - name: Run verify subdomains
         env:
           TARGET: ${{ inputs.target }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
         run: python verify_subdomains.py
       - name: Commit results
@@ -56,7 +56,7 @@ jobs:
       - name: Run deep subdomain
         env:
           TARGET: ${{ inputs.target }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
         run: python deep_subdomain.py
       - name: Commit results
@@ -90,7 +90,7 @@ jobs:
       - name: Run HTTP fingerprint
         env:
           TARGET: ${{ inputs.target }}
-          PROXY_AES_KEY: ${{ secrets.PROXY_AES_KEY }}
+          RECON_RSA_PRIVATE: ${{ secrets.RECON_RSA_PRIVATE }}
           RECON_RSA_PUBLIC: ${{ secrets.RECON_RSA_PUBLIC }}
         run: python http_fingerprint.py
       - name: Commit results
